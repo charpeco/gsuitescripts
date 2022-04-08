@@ -1,0 +1,25 @@
+let data = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0]
+
+function yes_no_ratio(row, column, no_rows, needed_str) {
+  let pos_str = ""
+  let neg_str = ""
+  if (needed_str == "Yes"){
+    pos_str = "Yes"
+    neg_str = "No"
+  } else if (needed_str == "Enabled"){
+    pos_str = "Enabled"
+    neg_str = "Disabled"
+  }
+  let positive_count = 0
+  let negative_count = 0
+  let relevant_data = data.getSheetValues(row, column, no_rows, 1)
+  for(let i = 0; i < no_rows; i++){
+    if (relevant_data[i][0] == pos_str){
+      positive_count = positive_count + 1
+    }
+    if (relevant_data[i][0] == neg_str){
+      negative_count = negative_count + 1
+    }
+  }
+  return `${pos_str}: ${positive_count} ${neg_str}: ${negative_count}`
+}
