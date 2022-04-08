@@ -1,0 +1,98 @@
+/*TO DO:
+--Implement date contacted in OutreachTracker
+--Async trigger signal to check date
+--Repurpose deprecated date functions to update sheet upon async trigger
+--Update dataFormatter so that it can format data for second followup
+*/
+
+let manager_data = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+let f_fillers = SpreadsheetApp.getActiveSpreadsheet().getSheets()[1];
+let f_temps = SpreadsheetApp.getActiveSpreadsheet().getSheets()[2];
+
+/* Be careful with how you use this; it's returning i + 1 because it was originally
+written with getSheetValues in mind, and getSheetValues isn't zero-indexed; will
+need to use (value - 1) when getting values from zero-indexed datatypes.
+*/
+function columnFinder(desired_column, desired_sheet){
+  let column_heads = desired_sheet.getSheetValues(1, 1, 1, 20)[0]
+  for (let i = 0; i < column_heads.length; i++){
+    if (column_heads[i] == desired_column){
+      return i + 1
+    }
+  }
+}
+
+function dataFormatter(){
+  let name_and_manager = []
+  let formatted_data = []
+  let today = new Date().toLocaleDateString()
+  let alert_row_index = columnFinder("Date of First Followup", manager_data)
+  let alert_row = manager_data.getSheetValues(1, alert_row_index, 20, 1)
+  let manager_row_index = columnFinder("Manager", manager_data)
+  let first_name_row_index = columnFinder("Contact First Name", manager_data)
+  let manager_name_index = columnFinder("Manager Name", f_fillers)
+  let descriptor_index = columnFinder("Descriptor", f_fillers)
+  let doc_index = columnFinder("Doc", f_fillers)
+  let purpose_index = columnFinder("Purpose", f_fillers)
+  let f_fillers_cells = f_fillers.getSheetValues(1, 1, 19, 5)
+
+  /*Janky, but works--blank cells are strings but MM/DD/YYYY cells are (date) objects,
+  so the first check determines which cells have dates in them, then compares that object
+  as a MM/DD/YYYY string with today's date as a similar string, then pushes the entries
+  from that row + 1 (0-indexing) from the needed columns.
+  */
+  for (let i = 0; i < alert_row.length; i++){
+    if (typeof alert_row[i][0] == "object"){
+      if(alert_row[i][0].toLocaleDateString() == today){
+        name_and_manager.push([manager_data.getSheetValues(i + 1, manager_row_index, 1, 1)[0][0], manager_data.getSheetValues(i + 1, first_name_row_index, 1, 3)[0][0]])
+      }
+    }
+  }
+
+  //Remember to add Date to this
+  for (let i in name_and_manager){
+    for (let j in f_fillers.getSheetValues(1, 1, 19, 5)) {
+      if (name_and_manager[i][0] == f_fillers_cells[j][0]){
+        dict = {"%ContactName%" : name_and_manager[i][1],
+                "%ManagerName%" : f_fillers_cells[j][manager_name_index - 1],
+                "%Descriptor%" : f_fillers_cells[j][descriptor_index - 1],
+                "%Doc%" : f_fillers_cells[j][doc_index - 1],
+                "%Purpose%" : f_fillers_cells[j][purpose_index- 1],
+        }
+        formatted_data.push(dict)
+      }
+    }
+  }
+
+  //Logger.log(formatted_data)
+  return formatted_data
+}
+
+function templateFiller(){
+  let formatted_data = dataFormatter()
+  let formatted_templates = []
+  let fill_list = ["%ContactName%", "%Descriptor%", "%ManagerName%", "%Doc%", "%Purpose%"]
+
+//Will need to become more versatile as we add variants/if we do second outreaches
+  for (i in formatted_data){
+    let blank_template = f_temps.getSheetValues(2, 1, 1, 1)[0][0];
+    for (j in fill_list){
+      blank_template = blank_template.replace(fill_list[j], formatted_data[i][fill_list[j]])
+    }
+    formatted_templates.push(blank_template)
+  }
+
+  //Logger.log(formatted_templates)
+  return formatted_templates
+}
+
+/*
+Works for sending a bunch of emails at once, but worried that doing it like this needlessly
+runs the risk of tripping spam filters.
+*/ 
+function testEmail(){
+  let filled_templates = templateFiller()
+  for (let i in filled_templates){
+  GmailApp.sendEmail("address@gmail.com", "Formatted Followup", filled_templates[i])
+  }
+}
